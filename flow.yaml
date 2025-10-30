@@ -1,0 +1,18 @@
+id: load_order_details_to_mongo
+namespace: company.team
+tasks:
+  - id: parallel_tasks
+    type: io.kestra.plugin.core.flow.Parallel
+    tasks:
+      - id: orders_sequential
+        type: io.kestra.plugin.core.flow.Sequential
+        tasks:
+          - id: http_download_orders
+            type: io.kestra.plugin.core.http.Download
+            uri: https://huggingface.co/datasets/kestra/datasets/raw/main/csv/orders.csv
+      - id: products_sequential
+        type: io.kestra.plugin.core.flow.Sequential
+        tasks:
+          - id: http_download_products
+            type: io.kestra.plugin.core.http.Download
+            uri: https://huggingface.co/datasets/kestra/datasets/raw/main/csv/products.csv
