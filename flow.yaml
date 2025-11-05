@@ -10,9 +10,95 @@ tasks:
           - id: http_download_orders
             type: io.kestra.plugin.core.http.Download
             uri: https://huggingface.co/datasets/kestra/datasets/raw/main/csv/orders.csv
-      - id: products_sequential
-        type: io.kestra.plugin.core.flow.Sequential
-        tasks:
-          - id: http_download_products
-            type: io.kestra.plugin.core.http.Download
-            uri: https://huggingface.co/datasets/kestra/datasets/raw/main/csv/products.csv
+          - id: create_table_orders
+            type: io.kestra.plugin.jdbc.postgresql.Query
+            url: jdbc:postgresql://host.docker.internal:15432/postgres
+            username: pgadmin
+            password: pgpassword718191
+            sql: |
+              CREATE TABLE IF NOT EXISTS orders(
+                order_id integer not null,
+                customer_name varchar(100) not null,
+                customer_email varchar(200) not null,
+                product_id integer not null,
+                price numeric(6,2),
+                quantity integer,
+                total numeric(6,2),
+                PRIMARY KEY(order_id)
+              )
+          - id: clear_records_data_orders
+            type: io.kestra.plugin.jdbc.postgresql.Query
+            url: jdbc:postgresql://host.docker.internal:15432/postgres
+            username: pgadmin
+            password: pgpassword718191
+            sql: |
+              DELETE FROM orders WHERE 1=1
+          - id: update_data_orders
+            type: io.kestra.plugin.jdbc.postgresql.CopyIn
+            url: jdbc:postgresql://host.docker.internal:15432/postgres
+            username: pgadmin
+            password: pgpassword718191
+            from: "{{ outputs.http_download_orders.uri }}"
+            table: orders
+            format: CSV
+            header: true
+          - id: products_sequential
+            type: io.kestra.plugin.core.flow.Sequential
+            tasks:
+              - id: http_download_products
+                type: io.kestra.plugin.core.http.Download
+                uri: https://huggingface.co/datasets/kestra/datasets/raw/main/csv/products.csv
+              - id: create_table_products
+                type: io.kestra.plugin.jdbc.postgresql.Query
+                url: jdbc:postgresql://host.docker.internal:15432/postgres
+                username: pgadmin
+                password: pgpassword718191
+                sql: |
+                  CREATE TABLE IF NOT EXISTS products(
+                    product_id integer not null,
+                    product_name varchar(150) not null,
+                    product_category varchar(250) not null,
+                    brand varchar(100) not null,
+                    PRIMARY KEY(product_id)
+                  )
+                  
+          - id: clear_records_data_products
+            type: io.kestra.plugin.jdbc.postgresql.Query
+            url: jdbc:postgresql://host.docker.internal:15432/postgres
+            username: pgadmin
+            password: pgpassword718191
+            sql: |
+              DELETE FROM products WHERE 1=1
+          - id: update_data_products
+            type: io.kestra.plugin.jdbc.postgresql.CopyIn
+            url: jdbc:postgresql://host.docker.internal:15432/postgres
+            username: pgadmin
+            password: pgpassword718191
+            from: "{{ outputs.http_download_products.uri }}"
+            table: products
+            format: CSV
+            header: true
+  - id: query_postgree
+    type: io.kestra.plugin.jdbc.postgresql.Query
+    url: jdbc:postgresql://host.docker.internal:15432/postgres
+    username: pgadmin
+    password: pgpassword718191
+    sql: |
+      SELECT * FROM orders JOIN products ON orders.products_id = products.products_id
+    store: true
+
+  - id: delete_mongo
+    type: io.kestra.plugin.mongodb.Delete
+    connection:
+      uri: "mongodb://mongoadmin:secret718191@host.docker.internal:27017/?authSoruce=admin"
+    database: "local"
+    collection: "order_details"
+    operation: "DELETE_MANY"
+
+  - id: load_mango
+    type: io.kestra.plugin.mongodb.Load
+    connection:
+      uri: "mongodb://mongoadmin:secret718191@host.docker.internal:27017/?authSoruce=admin"
+    database: "local"
+    collection: "order_details"
+    from: "{{outputs.query_postgres.uri}}"
