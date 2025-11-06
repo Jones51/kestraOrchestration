@@ -102,3 +102,28 @@ tasks:
     database: "local"
     collection: "order_details"
     from: "{{outputs.query_postgres.uri}}"
+
+
+pluginDefaults:
+  - type: io.kestra.plugin.jdbc.postgresql.Query
+    values:
+      url: jdbc:postgresql://host.docker.internal:15432/postgres
+      username: pgadmin
+      password: "{{ secret('POSTGRES_PASSWORD') }}"
+  - type: io.kestra.plugin.jdbc.postgresql.CopyIn
+    values:
+      url: jdbc:postgresql://host.docker.internal:15432/postgres
+      username: pgadmin
+      password: "{{ secret('POSTGRES_PASSWORD') }}"
+      format: CSV
+      header: true
+
+triggers:
+  - id: trigger
+    type: io.kestra.plugin.jdbc.postgresql.Trigger
+    url: jdbc:postgresql://host.docker.internal:15432/postgres
+    username: pgadmin
+    password: "{{ secret('POSTGRES_PASSWORD') }}"
+    interval: "PT30S"
+    sql: "SELECT * FROM trigger_condition"
+    fetch: true
