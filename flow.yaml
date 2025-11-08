@@ -12,9 +12,6 @@ tasks:
             uri: https://huggingface.co/datasets/kestra/datasets/raw/main/csv/orders.csv
           - id: create_table_orders
             type: io.kestra.plugin.jdbc.postgresql.Query
-            url: jdbc:postgresql://host.docker.internal:15432/postgres
-            username: pgadmin
-            password: pgpassword718191
             sql: |
               CREATE TABLE IF NOT EXISTS orders(
                 order_id integer not null,
@@ -26,88 +23,66 @@ tasks:
                 total numeric(6,2),
                 PRIMARY KEY(order_id)
               )
-          - id: clear_records_data_orders
+          - id: clear_records_orders
             type: io.kestra.plugin.jdbc.postgresql.Query
-            url: jdbc:postgresql://host.docker.internal:15432/postgres
-            username: pgadmin
-            password: pgpassword718191
             sql: |
               DELETE FROM orders WHERE 1=1
           - id: update_data_orders
             type: io.kestra.plugin.jdbc.postgresql.CopyIn
-            url: jdbc:postgresql://host.docker.internal:15432/postgres
-            username: pgadmin
-            password: pgpassword718191
             from: "{{ outputs.http_download_orders.uri }}"
             table: orders
-            format: CSV
-            header: true
-          - id: products_sequential
-            type: io.kestra.plugin.core.flow.Sequential
-            tasks:
-              - id: http_download_products
-                type: io.kestra.plugin.core.http.Download
-                uri: https://huggingface.co/datasets/kestra/datasets/raw/main/csv/products.csv
-              - id: create_table_products
-                type: io.kestra.plugin.jdbc.postgresql.Query
-                url: jdbc:postgresql://host.docker.internal:15432/postgres
-                username: pgadmin
-                password: pgpassword718191
-                sql: |
-                  CREATE TABLE IF NOT EXISTS products(
-                    product_id integer not null,
-                    product_name varchar(150) not null,
-                    product_category varchar(250) not null,
-                    brand varchar(100) not null,
-                    PRIMARY KEY(product_id)
-                  )
-                  
-          - id: clear_records_data_products
+
+      - id: products_sequential
+        type: io.kestra.plugin.core.flow.Sequential
+        tasks:
+          - id: http_download_products
+            type: io.kestra.plugin.core.http.Download
+            uri: https://huggingface.co/datasets/kestra/datasets/raw/main/csv/products.csv
+          - id: create_table_products
             type: io.kestra.plugin.jdbc.postgresql.Query
-            url: jdbc:postgresql://host.docker.internal:15432/postgres
-            username: pgadmin
-            password: pgpassword718191
+            sql: |
+              CREATE TABLE IF NOT EXISTS products(
+                product_id integer not null,
+                product_name varchar(150) not null,
+                product_category varchar(250) not null,
+                brand varchar(100) not null,
+                PRIMARY KEY(product_id)
+              )
+          - id: clear_records_products
+            type: io.kestra.plugin.jdbc.postgresql.Query
             sql: |
               DELETE FROM products WHERE 1=1
           - id: update_data_products
             type: io.kestra.plugin.jdbc.postgresql.CopyIn
-            url: jdbc:postgresql://host.docker.internal:15432/postgres
-            username: pgadmin
-            password: pgpassword718191
             from: "{{ outputs.http_download_products.uri }}"
             table: products
-            format: CSV
-            header: true
-  - id: query_postgree
-    type: io.kestra.plugin.jdbc.postgresql.Query
-    url: jdbc:postgresql://host.docker.internal:15432/postgres
-    username: pgadmin
-    password: pgpassword718191
-    sql: |
-      SELECT * FROM orders JOIN products ON orders.products_id = products.products_id
-    store: true
 
-  - id: delete_mongo
+  - id: query_postgres
+    type: io.kestra.plugin.jdbc.postgresql.Query
+    sql: |
+      SELECT * FROM orders JOIN products ON orders.product_id = products.product_id
+    store: true
+  
+  - id: clear_mongodb_records
     type: io.kestra.plugin.mongodb.Delete
     connection:
-      uri: "mongodb://mongoadmin:secret718191@host.docker.internal:27017/?authSoruce=admin"
+      uri: "mongodb://mongoadmin:{{ secret('MONGODB_PASSWORD') }}@host.docker.internal:27017/?authSource=admin"
     database: "local"
     collection: "order_details"
     operation: "DELETE_MANY"
 
-  - id: load_mango
+  - id: load_mongo
     type: io.kestra.plugin.mongodb.Load
     connection:
-      uri: "mongodb://mongoadmin:secret718191@host.docker.internal:27017/?authSoruce=admin"
+      uri: "mongodb://mongoadmin:{{ secret('MONGODB_PASSWORD') }}@host.docker.internal:27017/?authSource=admin"
     database: "local"
     collection: "order_details"
-    from: "{{outputs.query_postgres.uri}}"
-
+    from: "{{ outputs.query_postgres.uri }}"
+  
   - id: clear_records_trigger_condition
     type: io.kestra.plugin.jdbc.postgresql.Query
     sql: |
       DELETE FROM trigger_condition WHERE 1=1
-
 
 pluginDefaults:
   - type: io.kestra.plugin.jdbc.postgresql.Query
@@ -132,3 +107,7 @@ triggers:
     interval: "PT30S"
     sql: "SELECT * FROM trigger_condition"
     fetch: true
+
+
+
+
