@@ -103,6 +103,11 @@ tasks:
     collection: "order_details"
     from: "{{outputs.query_postgres.uri}}"
 
+  - id: clear_records_trigger_condition
+    type: io.kestra.plugin.jdbc.postgresql.Query
+    sql: |
+      DELETE FROM trigger_condition WHERE 1=1
+
 
 pluginDefaults:
   - type: io.kestra.plugin.jdbc.postgresql.Query
